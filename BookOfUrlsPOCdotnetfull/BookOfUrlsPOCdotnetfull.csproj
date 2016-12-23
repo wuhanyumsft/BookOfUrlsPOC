@@ -33,16 +33,16 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.Document.Hosting.Common, Version=1.2.184.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Document.Hosting.RestClient.1.2.184.0\lib\net451\Microsoft.Document.Hosting.Common.dll</HintPath>
+    <Reference Include="Microsoft.Document.Hosting.Common, Version=1.2.469.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Document.Hosting.RestClient.1.2.469\lib\net451\Microsoft.Document.Hosting.Common.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Microsoft.Document.Hosting.RestClient, Version=1.2.184.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Document.Hosting.RestClient.1.2.184.0\lib\net451\Microsoft.Document.Hosting.RestClient.dll</HintPath>
+    <Reference Include="Microsoft.Document.Hosting.RestClient, Version=1.2.469.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Document.Hosting.RestClient.1.2.469\lib\net451\Microsoft.Document.Hosting.RestClient.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Microsoft.Document.Hosting.RestService.Contract, Version=1.2.184.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Document.Hosting.RestClient.1.2.184.0\lib\net451\Microsoft.Document.Hosting.RestService.Contract.dll</HintPath>
+    <Reference Include="Microsoft.Document.Hosting.RestService.Contract, Version=1.2.469.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Document.Hosting.RestClient.1.2.469\lib\net451\Microsoft.Document.Hosting.RestService.Contract.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">

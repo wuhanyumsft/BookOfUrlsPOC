@@ -5,22 +5,84 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices.ComTypes;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Document.Hosting.RestClient;
+using Microsoft.Document.Hosting.RestService.Contract;
 using Newtonsoft.Json.Linq;
 
 namespace BookOfUrlsPOCdotnetfull
 {
     public class Program
     {
-        static Dictionary<string, int> countDict = new Dictionary<string, int>();
+        static readonly Dictionary<string, int> CountDict = new Dictionary<string, int>();
+        static readonly IDocumentHostingService Client = new DocumentHostingServiceClient(
+                new Uri("https://op-dhs-sandbox-pub.azurewebsites.net"),
+                "integration_test",
+                "",
+                TimeSpan.FromSeconds(10),
+                null); 
 
         public static void Main(string[] args)
         {
-            string[] depotNames = { "MSDN.azuredotnet" };
-
+            CancellationToken cancellationToken = new CancellationToken();
+            string newDepotName = "MSDN.test.api";
+            GetDocumentResponse document = Client.GetDocument(newDepotName, "toc.json", "en-us", 0, "master", false, null, cancellationToken).Result;
+            Client.PutDocument(newDepotName, "toc.json", "en-us", 0, "master", new PutDocumentRequest
+            {
+                Metadata = document.Metadata,
+                ContentSourceUri = "https://opdhsblobsandbox02.blob.core.windows.net/contents/00c82de5872e4beeb44c1c5ee72aee54/result.json"
+            }, null, cancellationToken).Wait();
         }
 
-        private static void GetMergedToc()
+        private static void GetMergedRepo()
+        {
+            string[] depotNames = { "MSDN.azuredotnet", "MSDN.coredocs-demo", "MSDN.aspnetAPIDocs" };
+            string newDepotName = "MSDN.test.api";
+            CancellationToken cancellationToken = new CancellationToken();
+            foreach (var depotName in depotNames)
+            {
+                Console.WriteLine(depotName);
+                GetDepotResponse depot = Client.GetDepot(depotName, null, cancellationToken).Result;
+                string continueAt = null;
+                int count = 0;
+                while (true)
+                {
+                    GetDocumentsResponse documents = Client.GetDocumentsPaginated(depotName, "en-us", "master", false, continueAt, null, 100, cancellationToken).Result;
+                    continueAt = documents.ContinueAt;
+                    count += documents.Documents.Count;
+                    Console.WriteLine($"{count}, {DateTime.Now:HH:mm:ss tt zz}");
+
+                    var putDocumentsRequest = new PutDocumentsRequest();
+                    putDocumentsRequest.Documents.AddRange(documents.Documents.Select(d => new PutDocumentsRequestItem
+                    {
+                        AssetId = d.AssetId,
+                        ProductVersion = d.ProductVersion,
+                        ContentSourceUri = d.ContentUri,
+                        Locale = d.Locale,
+                        Metadata = d.Metadata
+                    }));
+
+                    Client.PutDocuments(newDepotName, "master", putDocumentsRequest, null, cancellationToken).Wait();
+                    if (string.IsNullOrEmpty(continueAt)) break;
+                }
+
+
+
+                /*PutDepotRequest request = new PutDepotRequest
+                {
+                    SiteBasePath = "ppe.docs.microsoft.com/test/api/",
+                    Tenant = depot.Tenant,
+                    Metadata = depot.Metadata
+                };
+                request.Metadata["docset_path"] = "/test/api";
+                Client.PutDepot(newDepotName, request, null, cancellationToken).Wait();
+                Client.PutBranch(newDepotName, "master", null, cancellationToken).Wait();*/
+            }
+            Console.WriteLine("Merge comeplete. Press any key to continue...");
+        }
+
+        private static string GetMergedToc()
         {
             string[] tocUrls = {
                 "https://docs.microsoft.com/en-us/dotnet/core/api/toc.json",
@@ -51,11 +113,11 @@ namespace BookOfUrlsPOCdotnetfull
 
             using (StreamWriter file = new StreamWriter(File.Create("stat_result.txt")))
             {
-                foreach (var title in countDict.Keys)
+                foreach (var title in CountDict.Keys)
                 {
-                    if (countDict[title] > 1)
+                    if (CountDict[title] > 1)
                     {
-                        file.WriteLine($"{title}: {countDict[title]}");
+                        file.WriteLine($"{title}: {CountDict[title]}");
                     }
                 }
             }
@@ -65,8 +127,7 @@ namespace BookOfUrlsPOCdotnetfull
             {
                 file.WriteLine(result);
             }
-            Console.WriteLine("Toc merged. Press any key to continue...");
-            Console.ReadKey();
+            return result;
         }
 
         private static JArray MergeToc(IEnumerable<JArray> tocJsons)
@@ -105,13 +166,13 @@ namespace BookOfUrlsPOCdotnetfull
                     tocTitle = prefix + tocTitle;
                 }
 
-                if (!countDict.ContainsKey(tocTitle))
+                if (!CountDict.ContainsKey(tocTitle))
                 {
-                    countDict.Add(tocTitle, 1);
+                    CountDict.Add(tocTitle, 1);
                 }
                 else
                 {
-                    countDict[tocTitle] += 1;
+                    CountDict[tocTitle] += 1;
                 }
             }
         }
