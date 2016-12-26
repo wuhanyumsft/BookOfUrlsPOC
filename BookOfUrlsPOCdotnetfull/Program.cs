@@ -16,6 +16,7 @@ namespace BookOfUrlsPOCdotnetfull
     public class Program
     {
         static readonly Dictionary<string, int> CountDict = new Dictionary<string, int>();
+        static readonly Dictionary<string, IList<GetDocumentResponse>> DocumentDict = new Dictionary<string, IList<GetDocumentResponse>>();
         static readonly IDocumentHostingService Client = new DocumentHostingServiceClient(
                 new Uri("https://op-dhs-sandbox-pub.azurewebsites.net"),
                 "integration_test",
@@ -25,25 +26,76 @@ namespace BookOfUrlsPOCdotnetfull
 
         public static void Main(string[] args)
         {
-            CancellationToken cancellationToken = new CancellationToken();
+            //CreateDepot();
+            GetMergedRepo();
             string newDepotName = "MSDN.test.api";
-            GetDocumentResponse document = Client.GetDocument(newDepotName, "toc.json", "en-us", 0, "master", false, null, cancellationToken).Result;
-            Client.PutDocument(newDepotName, "toc.json", "en-us", 0, "master", new PutDocumentRequest
+            CancellationToken cancellationToken = new CancellationToken();
+            HashSet<string> blackList = new HashSet<string> { "index", "toc.json", "_themes" };
+            var duplicatedDcouments = DocumentDict.Where(e => !blackList.Contains(e.Key.Split('/').First()) && e.Value.Count > 1);
+            foreach (var duplicatedDocument in duplicatedDcouments)
             {
-                Metadata = document.Metadata,
-                ContentSourceUri = "https://opdhsblobsandbox02.blob.core.windows.net/contents/00c82de5872e4beeb44c1c5ee72aee54/result.json"
-            }, null, cancellationToken).Wait();
+                Console.WriteLine(duplicatedDocument.Key);
+                foreach (var item in duplicatedDocument.Value)
+                {
+                    var putDocumentRequest = new PutDocumentRequest
+                    {
+                        Metadata = item.Metadata,
+                        ContentSourceUri = item.ContentUri
+                    };
+                    Client.PutDocument(newDepotName, $"{item.AssetId}({item.DepotName})", item.Locale,
+                        item.ProductVersion, "master", putDocumentRequest, null, cancellationToken).Wait();
+                }
+            }
+            Console.ReadKey();
+            ReplaceToc();
+            // GetMergedToc();
+        }
+
+        private static void ReplaceToc()
+        {
+            string[] targetTocs = {"toc.json"};
+            foreach (var toc in targetTocs)
+            {
+                CancellationToken cancellationToken = new CancellationToken();
+                string newDepotName = "MSDN.test.api";
+                GetDocumentResponse document = Client.GetDocument(newDepotName, toc, "en-us", 0, "master", false, null, cancellationToken).Result;
+                Client.PutDocument(newDepotName, toc, "en-us", 0, "master", new PutDocumentRequest
+                {
+                    Metadata = document.Metadata,
+                    ContentSourceUri = "https://siwtest.blob.core.windows.net/kingslayer/result.json"
+                }, null, cancellationToken).Wait();
+            }
+        }
+
+        private static void CreateDepot()
+        {
+            string newDepotName = "MSDN.test.api";
+            CancellationToken cancellationToken = new CancellationToken();
+            GetDepotResponse depot = Client.GetDepot("MSDN.coredocs-demo", null, cancellationToken).Result;
+            PutDepotRequest request = new PutDepotRequest
+            {
+                SiteBasePath = "ppe.docs.microsoft.com/test.api/",
+                Tenant = depot.Tenant,
+                Metadata = depot.Metadata
+            };
+            request.Metadata["docset_path"] = "/test.api";
+            Client.PutDepot(newDepotName, request, null, cancellationToken).Wait();
+            Client.PutBranch(newDepotName, "master", null, cancellationToken).Wait();
         }
 
         private static void GetMergedRepo()
         {
-            string[] depotNames = { "MSDN.azuredotnet", "MSDN.coredocs-demo", "MSDN.aspnetAPIDocs" };
+            string[] depotNames =
+            {
+                //"MSDN.azuredotnet",
+                "MSDN.coredocs-demo",
+                "MSDN.aspnetAPIDocs"
+            };
             string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             foreach (var depotName in depotNames)
             {
                 Console.WriteLine(depotName);
-                GetDepotResponse depot = Client.GetDepot(depotName, null, cancellationToken).Result;
                 string continueAt = null;
                 int count = 0;
                 while (true)
@@ -63,21 +115,23 @@ namespace BookOfUrlsPOCdotnetfull
                         Metadata = d.Metadata
                     }));
 
+                    foreach (var document in documents.Documents)
+                    {
+                        var key = document.AssetId;
+                        if (key.StartsWith("api/"))
+                        {
+                            key = key.Substring(4);
+                        }
+                        if (!DocumentDict.ContainsKey(key))
+                        {
+                            DocumentDict.Add(key, new List<GetDocumentResponse>());
+                        }
+                        DocumentDict[key].Add(document);
+                    }
+
                     Client.PutDocuments(newDepotName, "master", putDocumentsRequest, null, cancellationToken).Wait();
                     if (string.IsNullOrEmpty(continueAt)) break;
                 }
-
-
-
-                /*PutDepotRequest request = new PutDepotRequest
-                {
-                    SiteBasePath = "ppe.docs.microsoft.com/test/api/",
-                    Tenant = depot.Tenant,
-                    Metadata = depot.Metadata
-                };
-                request.Metadata["docset_path"] = "/test/api";
-                Client.PutDepot(newDepotName, request, null, cancellationToken).Wait();
-                Client.PutBranch(newDepotName, "master", null, cancellationToken).Wait();*/
             }
             Console.WriteLine("Merge comeplete. Press any key to continue...");
         }
@@ -107,6 +161,10 @@ namespace BookOfUrlsPOCdotnetfull
                 }
                 return null;
             }).ToArray();
+
+            //hard code to add /api prefix
+            Traverse(tocJsons[0], null, "api/");
+            //hard code end
 
             JArray mergedToc = MergeToc(tocJsons);
             string result = JsonConvert.SerializeObject(mergedToc);
@@ -144,22 +202,26 @@ namespace BookOfUrlsPOCdotnetfull
             return result;
         }
 
-        private static void Traverse(object root, string prefix = null)
+        private static void Traverse(object root, string prefix = null, string addPrefix = null)
         {
             if (root is JArray)
             {
                 foreach (var child in ((JArray)root).Children())
                 {
-                    Traverse(child, prefix);
+                    Traverse(child, prefix, addPrefix);
                 }
             }
             else if (root is JObject)
             {
                 var tocTitle = ((JObject)root).Property("toc_title").Value.ToString();
                 var children = ((JObject)root).Property("children").Value;
+                if (!string.IsNullOrEmpty(addPrefix))
+                {
+                    ((JObject) root).Property("href").Value = addPrefix + ((JObject) root).Property("href").Value;
+                }
                 if (children != null && children.Any())
                 {
-                    Traverse(children, tocTitle + ".");
+                    Traverse(children, tocTitle + ".", addPrefix);
                 }
                 if (!string.IsNullOrEmpty(prefix))
                 {
