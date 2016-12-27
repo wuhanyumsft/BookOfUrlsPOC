@@ -1,0 +1,244 @@
+﻿<!DOCTYPE html>
+
+<html class="no-js reference" lang="en-us" dir="ltr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:title" content="System.Net.Http namespace">
+    <meta name="ROBOTS" content="INDEX,FOLLOW">
+    <meta name="ms.tgt_pltfrm" content="dotnet">
+    <meta name="author" content="rick-anderson">
+    <meta name="ms.author" content="riande">
+    <meta name="audience" content="developer">
+    <meta name="manager" content="wpickett">
+    <meta name="breadcrumb_path" content="/aspnet/core/api/breadcrumb.json">
+    <meta name="ms.locale" content="en-us">
+    <meta name="ms.topic" content="reference">
+    <meta name="ms.date" content="09/15/2016">
+    <meta name="ms.technology" content="aspnet">
+    <meta name="ms.prod" content="aspnet-core">
+    <meta name="ms.reviewer" content="daroth">
+    <meta name="search.ms_sitename" content="Docs">
+    <meta name="search.ms_docsetname" content="aspnetAPIDocs">
+    <meta name="version" content="0">
+    <meta name="locale" content="en-us">
+    <meta name="site_name" content="Docs">
+    <meta name="search.ms_product" content="MSDN">
+    <meta name="depot_name" content="MSDN.aspnetAPIDocs">
+    <meta name="ref_skeleton_gitcommit" content="https://github.com/openpublish/ApiDocs/blob/9db4f974d730dc7e5e67d52bfc39e9a83e86646f/docs/api/System.Net.Http.yml">
+    <meta name="original_ref_skeleton_git_url" content="https://github.com/openpublish/ApiDocs/blob/master/docs/api/System.Net.Http.yml">
+    <meta name="updated_at" content="2016-11-02 09:12 AM">
+    <meta name="document_id" content="110b7f06-a5c3-9c54-ca39-aae4cca58061">
+    <meta name="pagetype" content="Reference">
+    <meta name="toc_rel" content="toc.json">
+    <meta name="source_url" content="">
+    <meta name="ms.assetid" content="System.Net.Http">
+
+
+
+
+
+    <link href="https://ppe.docs.microsoft.com/en-us/aspnet/core/api/system.net.http" rel="canonical">
+    <title>System.Net.Http namespace</title>
+    <link rel="stylesheet" href="_themes/css/e0ce3378843779296d07.reference.css ">
+    <script>
+	var msDocs = {
+		data:{},
+		functions:{}
+	};
+    </script>
+
+
+    <script>
+	msDocs.data.pathToTheme = '_themes/';
+    </script>
+
+
+
+    <!--[if lt IE 9]>
+        <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.12.4.min.js"></script>
+        <script src="_themes/global/js/polyfills/all.js"></script>
+    <![endif]-->
+    <!--[if gte IE 9]><!-->
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-2.2.4.min.js"></script>
+    <!--<![endif]-->
+    <script>window.jQuery || document.write('<script src="_themes/global/js/jquery/jquery-1.12.4.min.js"><\/script>')</script>
+
+    <script src="_themes/global/js/global.min.js?v=18"></script>
+
+
+</head>
+<body>
+
+
+
+    <header id="header" ms.pgarea="header">
+        <div id="common-nav-placeholder">
+            <div class="container" role="banner">
+                <div id="skiplink"><a href="#main" class="skip">Skip to Main Content</a></div>
+                <a href="/" title="Microsoft"><img class="msLogo" src="/en-us/_themes/images/logo-ms-dark.png" alt=""><img class="msLogoDark" src="/en-us/_themes/images/logo-ms.png" alt=""></a>
+                <form action="/en-us/search/index" class="searchHolder">
+                    <input name="search" type="search" maxlength="200" placeholder="">
+                    <input id="search-btn" type="submit" title="">
+                    <div id="search-suggestions"></div>
+                </form>
+            </div>
+        </div>
+
+        <div id="lca-cookie-notification" class="shell-notification" style="display:none;">
+            <div class="shell-notification-grid-row shell-notification-clearfix">
+                <span id="cookie.consent.europe" class="notification-txt"></span>
+                <span class="notification-action">
+                    <a id="privacystatement-link" tabindex="1" href="#"></a>
+                    <a id="cookie-notification-close" tabindex="2">
+                        <i class="shell-icon-close"></i>
+                    </a>
+                </span>
+            </div>
+        </div>
+        <div id="msdn-redirection-notification" class="shell-notification" style="display:none;">
+            <div class="shell-notification-grid-row shell-notification-clearfix">
+                <span id="msdn.redirection.text" class="notification-txt">You were redirected to this page from MSDN.  We are in the process of migrating all technical content to docs.microsoft.com.</span>
+                <span class="notification-action">
+                    <a id="redirect-notification-close" tabindex="1">
+                        <i class="shell-icon-close"></i>
+                    </a>
+                </span>
+            </div>
+        </div>
+
+        <div id="sub-header" class="container" ms.cmpgrp="breadcrumb" role="navigation" aria-label="breadcrumb">
+            <div id="sub-header-content">
+                <div class="content">
+                    <ul class="breadcrumbs"></ul>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container" ms.pgarea="body">
+            <div id="page-actions" ms.cmpgrp="social" role="complementary">
+                <div id="page-actions-content">
+
+                    <ol class="action-list">
+
+                        <li>
+                            <a href="#" class="button sharebutton" title="Share This Document"><i class="icon icon-share"></i>Share</a>
+                            <div class="share-container">
+
+                                <div><a href="" class="share-twitter"><i class="icon icon-twitter"></i>Twitter</a></div>
+                                <div><a href="" class="share-facebook"><i class="icon icon-facebook"></i>Facebook</a></div>
+
+
+
+
+
+                            </div>
+                        </li>
+
+
+                        <li class="menu">
+                            <div class="dropdown-container">
+                                <div class="dropdown">
+                                    <label for="lang-selector">Language</label>
+                                    <select name="lang-selector" id="lang-selector">
+
+                                        <option value="lang-csharp">C#
+
+                                        <option value="lang-vb">VB
+
+                                    </select>
+                                </div>
+                            </div>
+                        </li>
+
+                        <li class="menu">
+                            <div class="dropdown-container">
+                                <div class="dropdown">
+                                    <label for="theme-selector">Theme</label>
+                                    <select id="theme-selector">
+                                        <option value="" class="removedOnload">
+                                        <option value="">Light
+                                        <option value="theme_night">Dark
+                                    </select>
+                                </div>
+                            </div>
+                        </li>
+                    </ol>
+
+                    <div id="menu-expand">
+                        <h4><span id="menu-expand-icon">+ </span>Options</h4>
+                    </div>
+
+                    <nav id="side-doc-outline" class="doc-outline" ms.cmpgrp="intopic toc" role="navigation" aria-label="On page navigation">
+                        <h3>In this article</h3>
+                    </nav>
+
+                </div>
+            </div>
+
+            <div id="sidebar" ms.cmpgrp="left toc" role="navigation" aria-label="main navigation">
+                <div id="sidebarContent">
+                    <div class="filterHolder"></div>
+                    <nav class="toc"></nav>
+                    <div class="pdfDownloadHolder"></div>
+                </div>
+            </div>
+
+            <div id="menu-nav" class="dropdown-container">
+                <div class="dropdown dropdown-full mobilenavi">
+                    <select></select>
+                </div>
+            </div>
+
+            <div id="main" role="main">
+                <div id="langDisclaimer" class="disclaimer" style="display:none;"><span class="icon icon-disclaimer"></span><span class="disclaimertext">This content is not available in your language but here is the English version.</span></div>
+
+
+                <!-- NAMESPACE -->
+                <h1 id="System_Net_Http">
+                    <span class="lang-csharp">System.Net.Http</span>
+                    <span class="lang-vb">System.Net.Http</span>
+                    Namespace
+                </h1>
+
+                <nav id="center-doc-outline" class="doc-outline" ms.cmpgrp="intopic toc" role="navigation" aria-label="On page navigation">
+                    <h3>In this Article</h3>
+                </nav><div class="summary"></div>
+                <header class="header enable-platform-filter" id="classes">
+                    <h2>
+                        Classes
+                    </h2>
+                </header>
+
+                <table class="nameValue  enable-platform-filter">
+                    <tr id="System_Net_Http_HttpRequestMessageExtensions" class="enable-platform-filter">
+                        <td>
+                            <div class="lang-csharp"><a class="xref" href="system.net.http.httprequestmessageextensions">HttpRequestMessageExtensions</a></div>
+                            <div class="lang-vb"><a class="xref" href="system.net.http.httprequestmessageextensions">HttpRequestMessageExtensions</a></div>
+                        </td>
+                        <td>
+
+                            Provides extension methods for the <span class="xref">System.Net.Http.HttpRequestMessage</span> class.
+
+                        </td>
+                    </tr>
+                </table>
+
+
+
+            </div>
+
+        </div>
+
+        <div id="openFeedbackContainer" class="openfeedback-container footer-layout"></div>
+
+    </main>
+
+    <div id="footerPlaceholder"></div>
+
+
+    <script src="_themes/javascript/e0ce3378843779296d07.reference.js"></script>
+</body>
+</html>

@@ -8,6 +8,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using HtmlAgilityPack;
 using Microsoft.Document.Hosting.RestClient;
 using Microsoft.Document.Hosting.RestService.Contract;
 using Microsoft.WindowsAzure.Storage;
@@ -26,14 +27,27 @@ namespace BookOfUrlsPOCdotnetfull
                 "integration_test",
                 "",
                 TimeSpan.FromSeconds(10),
-                null); 
+                null);
+        static readonly IDocumentHostingService ProdClient = new DocumentHostingServiceClient(
+                new Uri("https://opdhs-prod.microsoftonedoc.com"),
+                "msdn_rendering",
+                "",
+                TimeSpan.FromSeconds(10),
+                null);
+
+        private static readonly string HardCodedPrefix = "core/api/";
 
         public static void Main(string[] args)
         {
             //CreateDepot();
-            GetMergedRepo();
+            //GetMergedRepo(Client, ProdClient);
             var blobUrl = GetMergedToc();
             ReplaceToc(blobUrl);
+            //GenerateDisambiguosPages();
+        }
+
+        public static void GenerateDisambiguosPages()
+        {
             string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             HashSet<string> blackList = new HashSet<string> { "index", "toc.json", "_themes" };
@@ -83,12 +97,16 @@ namespace BookOfUrlsPOCdotnetfull
 
         private static string GetDisambigousPage(string assetId, Tuple<string, string>[] duplicatedDocuments)
         {
-            var body = "";
+            HtmlDocument doc = new HtmlDocument();
+            doc.LoadHtml("disambigouspage.htm");
+            var targetNode = doc.DocumentNode.SelectSingleNode(@"/div[@id=main]/h1");
+            /*
             foreach (var duplicatedDocument in duplicatedDocuments)
             {
                 body += $"<p><a href='{duplicatedDocument.Item2}'>{assetId} in {duplicatedDocument.Item1}</a></p>";
             }
-            return $"<head><metahttp-equiv=\"content-type\"content=\"text/html;charset=utf-8\"><title>HelloWorld</title></head><body>{body}</body></html>";
+            */
+            return doc.DocumentNode.OuterHtml;
         }
 
         private static void ReplaceToc(string blobUrl)
@@ -123,13 +141,16 @@ namespace BookOfUrlsPOCdotnetfull
             Client.PutBranch(newDepotName, "master", null, cancellationToken).Wait();
         }
 
-        private static void GetMergedRepo()
+        private static void GetMergedRepo(IDocumentHostingService sandboxClient, IDocumentHostingService prodClient)
         {
             string[] depotNames =
             {
-                "MSDN.azuredotnet",
-                "MSDN.coredocs-demo",
-                "MSDN.aspnetAPIDocs"
+                //"MSDN.azuredotnet",
+                //"MSDN.aspnetAPIDocs",
+                //"MSDN.coredocs-demo",
+                // Prod
+                "MSDN.aspnet-core-conceptual",
+                "VS.core-docs",
             };
             string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
@@ -140,7 +161,7 @@ namespace BookOfUrlsPOCdotnetfull
                 int count = 0;
                 while (true)
                 {
-                    GetDocumentsResponse documents = Client.GetDocumentsPaginated(depotName, "en-us", "master", false, continueAt, null, 100, cancellationToken).Result;
+                    GetDocumentsResponse documents = prodClient.GetDocumentsPaginated(depotName, "en-us", "master", false, continueAt, null, 100, cancellationToken).Result;
                     continueAt = documents.ContinueAt;
                     count += documents.Documents.Count;
                     Console.WriteLine($"{count}, {DateTime.Now:HH:mm:ss tt zz}");
@@ -158,9 +179,9 @@ namespace BookOfUrlsPOCdotnetfull
                     foreach (var document in documents.Documents)
                     {
                         var key = document.AssetId;
-                        if (key.StartsWith("api/"))
+                        if (key.StartsWith(HardCodedPrefix))
                         {
-                            key = key.Substring(4);
+                            key = key.Substring(HardCodedPrefix.Length);
                         }
                         if (!DocumentDict.ContainsKey(key))
                         {
@@ -169,7 +190,7 @@ namespace BookOfUrlsPOCdotnetfull
                         DocumentDict[key].Add(document);
                     }
 
-                    Client.PutDocuments(newDepotName, "master", putDocumentsRequest, null, cancellationToken).Wait();
+                    sandboxClient.PutDocuments(newDepotName, "master", putDocumentsRequest, null, cancellationToken).Wait();
                     if (string.IsNullOrEmpty(continueAt)) break;
                 }
             }
@@ -181,7 +202,6 @@ namespace BookOfUrlsPOCdotnetfull
             string[] tocUrls = {
                 "https://docs.microsoft.com/en-us/aspnet/core/api/toc.json",
                 "https://docs.microsoft.com/en-us/dotnet/core/api/toc.json",
-                "https://docs.microsoft.com/en-us/dotnet/api/toc.json",
             };
 
             JArray[] tocJsons = tocUrls.Select(url =>
@@ -203,7 +223,7 @@ namespace BookOfUrlsPOCdotnetfull
             }).ToArray();
 
             //hard code to add /api prefix
-            Traverse(tocJsons[1], null, "api/");
+            Traverse(tocJsons[1], null, "HardCodedPrefix");
             //hard code end
 
             JArray mergedToc = MergeToc(tocJsons);
