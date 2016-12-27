@@ -5,10 +5,13 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Document.Hosting.RestClient;
 using Microsoft.Document.Hosting.RestService.Contract;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 using Newtonsoft.Json.Linq;
 
 namespace BookOfUrlsPOCdotnetfull
@@ -17,6 +20,7 @@ namespace BookOfUrlsPOCdotnetfull
     {
         static readonly Dictionary<string, int> CountDict = new Dictionary<string, int>();
         static readonly Dictionary<string, IList<GetDocumentResponse>> DocumentDict = new Dictionary<string, IList<GetDocumentResponse>>();
+        static readonly CloudStorageAccount StorageAccount = CloudStorageAccount.Parse("");
         static readonly IDocumentHostingService Client = new DocumentHostingServiceClient(
                 new Uri("https://op-dhs-sandbox-pub.azurewebsites.net"),
                 "integration_test",
@@ -28,6 +32,8 @@ namespace BookOfUrlsPOCdotnetfull
         {
             //CreateDepot();
             GetMergedRepo();
+            var blobUrl = GetMergedToc();
+            ReplaceToc(blobUrl);
             string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             HashSet<string> blackList = new HashSet<string> { "index", "toc.json", "_themes" };
@@ -35,6 +41,15 @@ namespace BookOfUrlsPOCdotnetfull
             foreach (var duplicatedDocument in duplicatedDcouments)
             {
                 Console.WriteLine(duplicatedDocument.Key);
+                var disabmbigousPage = GetDisambigousPage(duplicatedDocument.Key,
+                    duplicatedDocument.Value.Select(
+                        v => Tuple.Create<string, string>(v.DepotName, $"{v.AssetId}({v.DepotName})")).ToArray());
+                var url = GetBlobUrlByCreatingOne(disabmbigousPage);
+                var putDisambigousPageRequest = new PutDocumentRequest
+                {
+                    Metadata = new Dictionary<string, object>(),
+                    ContentSourceUri = url
+                };
                 foreach (var item in duplicatedDocument.Value)
                 {
                     var putDocumentRequest = new PutDocumentRequest
@@ -44,14 +59,39 @@ namespace BookOfUrlsPOCdotnetfull
                     };
                     Client.PutDocument(newDepotName, $"{item.AssetId}({item.DepotName})", item.Locale,
                         item.ProductVersion, "master", putDocumentRequest, null, cancellationToken).Wait();
+                    putDisambigousPageRequest.Metadata = item.Metadata;
+                    Client.PutDocument(newDepotName, item.AssetId, item.Locale,
+                        item.ProductVersion, "master", putDisambigousPageRequest, null, cancellationToken).Wait();
                 }
+
+
             }
             Console.ReadKey();
-            ReplaceToc();
-            // GetMergedToc();
         }
 
-        private static void ReplaceToc()
+        private static string GetBlobUrlByCreatingOne(string content)
+        {
+            CloudBlobClient blobClient = StorageAccount.CreateCloudBlobClient();
+            CloudBlobContainer container = blobClient.GetContainerReference("kingslayer");
+            CloudBlockBlob blockBlob = container.GetBlockBlobReference(Guid.NewGuid().ToString());
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(content ?? "")))
+            {
+                blockBlob.UploadFromStream(stream);
+            }
+            return blockBlob.Uri.ToString();
+        }
+
+        private static string GetDisambigousPage(string assetId, Tuple<string, string>[] duplicatedDocuments)
+        {
+            var body = "";
+            foreach (var duplicatedDocument in duplicatedDocuments)
+            {
+                body += $"<p><a href='{duplicatedDocument.Item2}'>{assetId} in {duplicatedDocument.Item1}</a></p>";
+            }
+            return $"<head><metahttp-equiv=\"content-type\"content=\"text/html;charset=utf-8\"><title>HelloWorld</title></head><body>{body}</body></html>";
+        }
+
+        private static void ReplaceToc(string blobUrl)
         {
             string[] targetTocs = {"toc.json"};
             foreach (var toc in targetTocs)
@@ -62,7 +102,7 @@ namespace BookOfUrlsPOCdotnetfull
                 Client.PutDocument(newDepotName, toc, "en-us", 0, "master", new PutDocumentRequest
                 {
                     Metadata = document.Metadata,
-                    ContentSourceUri = "https://siwtest.blob.core.windows.net/kingslayer/result.json"
+                    ContentSourceUri = blobUrl
                 }, null, cancellationToken).Wait();
             }
         }
@@ -87,7 +127,7 @@ namespace BookOfUrlsPOCdotnetfull
         {
             string[] depotNames =
             {
-                //"MSDN.azuredotnet",
+                "MSDN.azuredotnet",
                 "MSDN.coredocs-demo",
                 "MSDN.aspnetAPIDocs"
             };
@@ -139,9 +179,9 @@ namespace BookOfUrlsPOCdotnetfull
         private static string GetMergedToc()
         {
             string[] tocUrls = {
+                "https://docs.microsoft.com/en-us/aspnet/core/api/toc.json",
                 "https://docs.microsoft.com/en-us/dotnet/core/api/toc.json",
                 "https://docs.microsoft.com/en-us/dotnet/api/toc.json",
-                "https://docs.microsoft.com/en-us/aspnet/core/api/toc.json"
             };
 
             JArray[] tocJsons = tocUrls.Select(url =>
@@ -163,7 +203,7 @@ namespace BookOfUrlsPOCdotnetfull
             }).ToArray();
 
             //hard code to add /api prefix
-            Traverse(tocJsons[0], null, "api/");
+            Traverse(tocJsons[1], null, "api/");
             //hard code end
 
             JArray mergedToc = MergeToc(tocJsons);
@@ -185,7 +225,7 @@ namespace BookOfUrlsPOCdotnetfull
             {
                 file.WriteLine(result);
             }
-            return result;
+            return GetBlobUrlByCreatingOne(result);
         }
 
         private static JArray MergeToc(IEnumerable<JArray> tocJsons)
