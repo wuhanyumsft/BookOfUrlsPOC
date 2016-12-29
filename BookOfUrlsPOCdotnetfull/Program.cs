@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
@@ -40,14 +41,19 @@ namespace BookOfUrlsPOCdotnetfull
         public static void Main(string[] args)
         {
             //CreateDepot();
-            //GetMergedRepo(Client, ProdClient);
+            GetMergedRepo(Client, ProdClient);
             var blobUrl = GetMergedToc();
             ReplaceToc(blobUrl);
-            //GenerateDisambiguosPages();
+            GenerateDisambiguosPages();
         }
 
         public static void GenerateDisambiguosPages()
         {
+            IDictionary<string, string> mappingName = new Dictionary<string, string>
+            {
+                { "VS.core-docs", "DotNetCore" },
+                { "MSDN.aspnetAPIDocs", "ASPDotNetCore" }
+            };
             string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             HashSet<string> blackList = new HashSet<string> { "index", "toc.json", "_themes" };
@@ -57,7 +63,7 @@ namespace BookOfUrlsPOCdotnetfull
                 Console.WriteLine(duplicatedDocument.Key);
                 var disabmbigousPage = GetDisambigousPage(duplicatedDocument.Key,
                     duplicatedDocument.Value.Select(
-                        v => Tuple.Create<string, string>(v.DepotName, $"{v.AssetId}({v.DepotName})")).ToArray());
+                        v => Tuple.Create<string, string>(v.DepotName, $"{v.AssetId}({mappingName[v.DepotName]})")).ToArray());
                 var url = GetBlobUrlByCreatingOne(disabmbigousPage);
                 var putDisambigousPageRequest = new PutDocumentRequest
                 {
@@ -69,18 +75,32 @@ namespace BookOfUrlsPOCdotnetfull
                     var putDocumentRequest = new PutDocumentRequest
                     {
                         Metadata = item.Metadata,
-                        ContentSourceUri = item.ContentUri
+                        ContentSourceUri = InsertDisambiguatedDisclaimer(item.ContentUri, item.AssetId)
                     };
-                    Client.PutDocument(newDepotName, $"{item.AssetId}({item.DepotName})", item.Locale,
+                    Client.PutDocument(newDepotName, $"{item.AssetId}({mappingName[item.DepotName]})", item.Locale,
                         item.ProductVersion, "master", putDocumentRequest, null, cancellationToken).Wait();
                     putDisambigousPageRequest.Metadata = item.Metadata;
                     Client.PutDocument(newDepotName, item.AssetId, item.Locale,
                         item.ProductVersion, "master", putDisambigousPageRequest, null, cancellationToken).Wait();
                 }
-
-
             }
             Console.ReadKey();
+        }
+
+        private static string InsertDisambiguatedDisclaimer(string uri, string assetId)
+        {
+            HtmlDocument doc = new HtmlDocument();
+            using (WebClient client = new WebClient())
+            {
+                string s = client.DownloadString(uri);
+                doc.LoadHtml(s);
+                var h1Node = doc.DocumentNode.SelectSingleNode("//div[@id='main']//h1");
+                var link = assetId;
+                for (int i = 0; i < assetId.Split('/').Length - 1; i++) link = "..\\" + link;
+                h1Node.ParentNode.InsertAfter(HtmlNode.CreateNode($"<div class='IMPORTANT alert'><h5>DISAMBIGUATED CONTENT</h5><p>The definition is also available in other framework. Click the <a href='{link}'>disambiguation page</a>.</div>"), h1Node);
+            }
+            
+            return GetBlobUrlByCreatingOne(doc.DocumentNode.OuterHtml);
         }
 
         private static string GetBlobUrlByCreatingOne(string content)
@@ -97,16 +117,34 @@ namespace BookOfUrlsPOCdotnetfull
 
         private static string GetDisambigousPage(string assetId, Tuple<string, string>[] duplicatedDocuments)
         {
+            IDictionary<string, string> mappingProduction = new Dictionary<string, string>
+            {
+                { "VS.core-docs", ".Net Core" },
+                { "MSDN.aspnetAPIDocs", "ASP .Net Core" }
+            };
             HtmlDocument doc = new HtmlDocument();
-            doc.LoadHtml("disambigouspage.htm");
-            var targetNode = doc.DocumentNode.SelectSingleNode(@"/div[@id=main]/h1");
-            /*
+            doc.LoadHtml(File.ReadAllText("..\\..\\disambigouspage.html"));
+            var targetH1Nodes = doc.DocumentNode.SelectNodes(@"//div[@id='main']//h1//span");
+            var name = NormalizeName(assetId);
+            foreach (var node in targetH1Nodes)
+            {
+                node.InnerHtml = name;
+            }
+
+            var targetTableBody = doc.DocumentNode.SelectSingleNode(@"//table[@id='targetTable']//tbody");
+            var tbody = "";
             foreach (var duplicatedDocument in duplicatedDocuments)
             {
-                body += $"<p><a href='{duplicatedDocument.Item2}'>{assetId} in {duplicatedDocument.Item1}</a></p>";
+                tbody += $"<tr><td><a href='{duplicatedDocument.Item2}'>{name}</a></td>" +
+                         $"<td>{mappingProduction[duplicatedDocument.Item1]}</td></tr>";
             }
-            */
+            targetTableBody.InnerHtml = tbody;
             return doc.DocumentNode.OuterHtml;
+        }
+
+        private static string NormalizeName(string name)
+        {
+            return string.Join(".", name.Split('.').Select(segment => segment[0].ToString().ToUpper() + segment.Substring(1)));
         }
 
         private static void ReplaceToc(string blobUrl)
@@ -149,7 +187,7 @@ namespace BookOfUrlsPOCdotnetfull
                 //"MSDN.aspnetAPIDocs",
                 //"MSDN.coredocs-demo",
                 // Prod
-                "MSDN.aspnet-core-conceptual",
+                "MSDN.aspnetAPIDocs",
                 "VS.core-docs",
             };
             string newDepotName = "MSDN.test.api";
@@ -223,7 +261,7 @@ namespace BookOfUrlsPOCdotnetfull
             }).ToArray();
 
             //hard code to add /api prefix
-            Traverse(tocJsons[1], null, "HardCodedPrefix");
+            Traverse(tocJsons[1], null, HardCodedPrefix);
             //hard code end
 
             JArray mergedToc = MergeToc(tocJsons);
