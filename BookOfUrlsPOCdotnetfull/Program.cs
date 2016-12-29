@@ -41,10 +41,10 @@ namespace BookOfUrlsPOCdotnetfull
         public static void Main(string[] args)
         {
             //CreateDepot();
-            GetMergedRepo(Client, ProdClient);
-            var blobUrl = GetMergedToc();
-            ReplaceToc(blobUrl);
-            GenerateDisambiguosPages();
+            //GetMergedRepo(Client, ProdClient);
+            var tocString = GetMergedToc();
+            ReplaceToc(tocString);
+           // GenerateDisambiguosPages();
         }
 
         public static void GenerateDisambiguosPages()
@@ -96,7 +96,7 @@ namespace BookOfUrlsPOCdotnetfull
                 doc.LoadHtml(s);
                 var h1Node = doc.DocumentNode.SelectSingleNode("//div[@id='main']//h1");
                 var link = assetId;
-                for (int i = 0; i < assetId.Split('/').Length - 1; i++) link = "..\\" + link;
+                for (int i = 0; i < assetId.Split('/').Length - 1; i++) link = "../" + link;
                 h1Node.ParentNode.InsertAfter(HtmlNode.CreateNode($"<div class='IMPORTANT alert'><h5>DISAMBIGUATED CONTENT</h5><p>The definition is also available in other framework. Click the <a href='{link}'>disambiguation page</a>.</div>"), h1Node);
             }
             
@@ -147,18 +147,24 @@ namespace BookOfUrlsPOCdotnetfull
             return string.Join(".", name.Split('.').Select(segment => segment[0].ToString().ToUpper() + segment.Substring(1)));
         }
 
-        private static void ReplaceToc(string blobUrl)
+        private static void ReplaceToc(string tocString)
         {
-            string[] targetTocs = {"toc.json"};
+            string[] targetTocs = {"toc.json", "core/api/toc.json"};
             foreach (var toc in targetTocs)
             {
                 CancellationToken cancellationToken = new CancellationToken();
                 string newDepotName = "MSDN.test.api";
                 GetDocumentResponse document = Client.GetDocument(newDepotName, toc, "en-us", 0, "master", false, null, cancellationToken).Result;
+                if (toc.Split('/').Length > 1)
+                {
+                    var json = JsonConvert.DeserializeObject<JArray>(tocString);
+                    Traverse(json, null, "../../");
+                    tocString = JsonConvert.SerializeObject(json);
+                }
                 Client.PutDocument(newDepotName, toc, "en-us", 0, "master", new PutDocumentRequest
                 {
                     Metadata = document.Metadata,
-                    ContentSourceUri = blobUrl
+                    ContentSourceUri = GetBlobUrlByCreatingOne(tocString)
                 }, null, cancellationToken).Wait();
             }
         }
@@ -283,7 +289,7 @@ namespace BookOfUrlsPOCdotnetfull
             {
                 file.WriteLine(result);
             }
-            return GetBlobUrlByCreatingOne(result);
+            return result;
         }
 
         private static JArray MergeToc(IEnumerable<JArray> tocJsons)
@@ -317,6 +323,7 @@ namespace BookOfUrlsPOCdotnetfull
                 {
                     ((JObject) root).Property("href").Value = addPrefix + ((JObject) root).Property("href").Value;
                 }
+
                 if (children != null && children.Any())
                 {
                     Traverse(children, tocTitle + ".", addPrefix);
