@@ -41,10 +41,10 @@ namespace BookOfUrlsPOCdotnetfull
         public static void Main(string[] args)
         {
             //CreateDepot();
-            //GetMergedRepo(Client, ProdClient);
+            GetMergedRepo(Client, ProdClient);
             var tocString = GetMergedToc();
             ReplaceToc(tocString);
-           // GenerateDisambiguosPages();
+            GenerateDisambiguosPages();
         }
 
         public static void GenerateDisambiguosPages()
@@ -215,7 +215,7 @@ namespace BookOfUrlsPOCdotnetfull
                     {
                         AssetId = d.AssetId,
                         ProductVersion = d.ProductVersion,
-                        ContentSourceUri = d.ContentUri,
+                        ContentSourceUri = GetCorrectedCanonicalUrl(d.ContentUri, d.AssetId),
                         Locale = d.Locale,
                         Metadata = d.Metadata
                     }));
@@ -239,6 +239,24 @@ namespace BookOfUrlsPOCdotnetfull
                 }
             }
             Console.WriteLine("Merge comeplete. Press any key to continue...");
+        }
+
+        private static string GetCorrectedCanonicalUrl(string url, string assetId)
+        {
+            HtmlDocument doc = new HtmlDocument();
+            using (WebClient client = new WebClient())
+            {
+                string s = client.DownloadString(url);
+                doc.LoadHtml(s);
+                var canonicalLink = doc.DocumentNode.SelectSingleNode("//link[@rel='canonical']");
+                if (canonicalLink != null)
+                {
+                    canonicalLink.Attributes["href"].Value = $"/test.api/{assetId}";
+                    return GetBlobUrlByCreatingOne(doc.DocumentNode.OuterHtml);
+                }
+            }
+
+            return url;
         }
 
         private static string GetMergedToc()
