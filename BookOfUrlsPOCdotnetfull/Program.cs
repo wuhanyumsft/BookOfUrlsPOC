@@ -20,6 +20,8 @@ namespace BookOfUrlsPOCdotnetfull
 {
     public class Program
     {
+        private static string newDepotName = "MSDN.dotnet.ref";
+        private static string newDepotBasePath = "dotnet/ref";
         static readonly Dictionary<string, int> CountDict = new Dictionary<string, int>();
         static readonly Dictionary<string, IList<GetDocumentResponse>> DocumentDict = new Dictionary<string, IList<GetDocumentResponse>>();
         static readonly CloudStorageAccount StorageAccount = CloudStorageAccount.Parse("");
@@ -45,6 +47,7 @@ namespace BookOfUrlsPOCdotnetfull
             var tocString = GetMergedToc();
             ReplaceToc(tocString);
             GenerateDisambiguosPages();
+            Console.ReadLine();
         }
 
         public static void GenerateDisambiguosPages()
@@ -54,7 +57,6 @@ namespace BookOfUrlsPOCdotnetfull
                 { "VS.core-docs", "DotNetCore" },
                 { "MSDN.aspnetAPIDocs", "ASPDotNetCore" }
             };
-            string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             HashSet<string> blackList = new HashSet<string> { "index", "toc.json", "_themes" };
             var duplicatedDcouments = DocumentDict.Where(e => !blackList.Contains(e.Key.Split('/').First()) && e.Value.Count > 1);
@@ -68,16 +70,17 @@ namespace BookOfUrlsPOCdotnetfull
                 var putDisambigousPageRequest = new PutDocumentRequest
                 {
                     Metadata = new Dictionary<string, object>(),
-                    ContentSourceUri = url
+                    ContentSourceUri = GetCorrectedCanonicalUrl(url, duplicatedDocument.Key)
                 };
                 foreach (var item in duplicatedDocument.Value)
                 {
+                    var newAssetId = $"{item.AssetId}({mappingName[item.DepotName]})";
                     var putDocumentRequest = new PutDocumentRequest
                     {
                         Metadata = item.Metadata,
-                        ContentSourceUri = InsertDisambiguatedDisclaimer(item.ContentUri, item.AssetId)
+                        ContentSourceUri = GetCorrectedCanonicalUrl(InsertDisambiguatedDisclaimer(item.ContentUri, item.AssetId), newAssetId)
                     };
-                    Client.PutDocument(newDepotName, $"{item.AssetId}({mappingName[item.DepotName]})", item.Locale,
+                    Client.PutDocument(newDepotName, newAssetId, item.Locale,
                         item.ProductVersion, "master", putDocumentRequest, null, cancellationToken).Wait();
                     putDisambigousPageRequest.Metadata = item.Metadata;
                     Client.PutDocument(newDepotName, item.AssetId, item.Locale,
@@ -95,9 +98,7 @@ namespace BookOfUrlsPOCdotnetfull
                 string s = client.DownloadString(uri);
                 doc.LoadHtml(s);
                 var h1Node = doc.DocumentNode.SelectSingleNode("//div[@id='main']//h1");
-                var link = assetId;
-                for (int i = 0; i < assetId.Split('/').Length - 1; i++) link = "../" + link;
-                h1Node.ParentNode.InsertAfter(HtmlNode.CreateNode($"<div class='IMPORTANT alert'><h5>DISAMBIGUATED CONTENT</h5><p>The definition is also available in other framework. Click the <a href='{link}'>disambiguation page</a>.</div>"), h1Node);
+                h1Node.ParentNode.InsertAfter(HtmlNode.CreateNode($"<div class='IMPORTANT alert'><h5>DISAMBIGUATED CONTENT</h5><p>The definition is also available in other framework. Click the <a href='{assetId}'>disambiguation page</a>.</div>"), h1Node);
             }
             
             return GetBlobUrlByCreatingOne(doc.DocumentNode.OuterHtml);
@@ -149,16 +150,15 @@ namespace BookOfUrlsPOCdotnetfull
 
         private static void ReplaceToc(string tocString)
         {
-            string[] targetTocs = {"toc.json", "core/api/toc.json"};
+            string[] targetTocs = {"toc.json"};
             foreach (var toc in targetTocs)
             {
                 CancellationToken cancellationToken = new CancellationToken();
-                string newDepotName = "MSDN.test.api";
                 GetDocumentResponse document = Client.GetDocument(newDepotName, toc, "en-us", 0, "master", false, null, cancellationToken).Result;
                 if (toc.Split('/').Length > 1)
                 {
                     var json = JsonConvert.DeserializeObject<JArray>(tocString);
-                    Traverse(json, null, "../../");
+                    Traverse(json, null);
                     tocString = JsonConvert.SerializeObject(json);
                 }
                 Client.PutDocument(newDepotName, toc, "en-us", 0, "master", new PutDocumentRequest
@@ -171,16 +171,15 @@ namespace BookOfUrlsPOCdotnetfull
 
         private static void CreateDepot()
         {
-            string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             GetDepotResponse depot = Client.GetDepot("MSDN.coredocs-demo", null, cancellationToken).Result;
             PutDepotRequest request = new PutDepotRequest
             {
-                SiteBasePath = "ppe.docs.microsoft.com/test.api/",
+                SiteBasePath = $"ppe.docs.microsoft.com/{newDepotBasePath}/",
                 Tenant = depot.Tenant,
                 Metadata = depot.Metadata
             };
-            request.Metadata["docset_path"] = "/test.api";
+            request.Metadata["docset_path"] = $"/{newDepotBasePath}";
             Client.PutDepot(newDepotName, request, null, cancellationToken).Wait();
             Client.PutBranch(newDepotName, "master", null, cancellationToken).Wait();
         }
@@ -196,7 +195,6 @@ namespace BookOfUrlsPOCdotnetfull
                 "MSDN.aspnetAPIDocs",
                 "VS.core-docs",
             };
-            string newDepotName = "MSDN.test.api";
             CancellationToken cancellationToken = new CancellationToken();
             foreach (var depotName in depotNames)
             {
@@ -210,16 +208,6 @@ namespace BookOfUrlsPOCdotnetfull
                     count += documents.Documents.Count;
                     Console.WriteLine($"{count}, {DateTime.Now:HH:mm:ss tt zz}");
 
-                    var putDocumentsRequest = new PutDocumentsRequest();
-                    putDocumentsRequest.Documents.AddRange(documents.Documents.Select(d => new PutDocumentsRequestItem
-                    {
-                        AssetId = d.AssetId,
-                        ProductVersion = d.ProductVersion,
-                        ContentSourceUri = GetCorrectedCanonicalUrl(d.ContentUri, d.AssetId),
-                        Locale = d.Locale,
-                        Metadata = d.Metadata
-                    }));
-
                     foreach (var document in documents.Documents)
                     {
                         var key = document.AssetId;
@@ -227,14 +215,27 @@ namespace BookOfUrlsPOCdotnetfull
                         {
                             key = key.Substring(HardCodedPrefix.Length);
                         }
+                        document.AssetId = key;
                         if (!DocumentDict.ContainsKey(key))
                         {
                             DocumentDict.Add(key, new List<GetDocumentResponse>());
                         }
                         DocumentDict[key].Add(document);
                     }
+                    
+                    var putDocumentsRequest = new PutDocumentsRequest();
+                    putDocumentsRequest.Documents.AddRange(documents.Documents.Select(d => new PutDocumentsRequestItem
+                    {
+                        AssetId = d.AssetId,
+                        ProductVersion = d.ProductVersion,
+                        ContentSourceUri = GetCorrectedCanonicalUrl(d.ContentUri, d.AssetId),
+                        //ContentSourceUri = d.ContentUri,
+                        Locale = d.Locale,
+                        Metadata = d.Metadata
+                    }));
 
                     sandboxClient.PutDocuments(newDepotName, "master", putDocumentsRequest, null, cancellationToken).Wait();
+                    
                     if (string.IsNullOrEmpty(continueAt)) break;
                 }
             }
@@ -243,6 +244,7 @@ namespace BookOfUrlsPOCdotnetfull
 
         private static string GetCorrectedCanonicalUrl(string url, string assetId)
         {
+            if (assetId.Contains("/")) return url;
             HtmlDocument doc = new HtmlDocument();
             using (WebClient client = new WebClient())
             {
@@ -251,8 +253,10 @@ namespace BookOfUrlsPOCdotnetfull
                 var canonicalLink = doc.DocumentNode.SelectSingleNode("//link[@rel='canonical']");
                 if (canonicalLink != null)
                 {
-                    canonicalLink.Attributes["href"].Value = $"/test.api/{assetId}";
-                    return GetBlobUrlByCreatingOne(doc.DocumentNode.OuterHtml);
+                    canonicalLink.Attributes["href"].Value = $"https://ppe.docs.microsoft.com/en-us/{newDepotBasePath}/{assetId}";
+                    var result = doc.DocumentNode.OuterHtml;
+                    result = result.Replace("../", "");
+                    return GetBlobUrlByCreatingOne(result);
                 }
             }
 
@@ -284,10 +288,6 @@ namespace BookOfUrlsPOCdotnetfull
                 return null;
             }).ToArray();
 
-            //hard code to add /api prefix
-            Traverse(tocJsons[1], null, HardCodedPrefix);
-            //hard code end
-
             JArray mergedToc = MergeToc(tocJsons);
             string result = JsonConvert.SerializeObject(mergedToc);
 
@@ -313,38 +313,61 @@ namespace BookOfUrlsPOCdotnetfull
         private static JArray MergeToc(IEnumerable<JArray> tocJsons)
         {
             JArray result = new JArray();
+            Dictionary<string, JObject> hs = new Dictionary<string, JObject>();
             foreach (var toc in tocJsons)
             {
                 Traverse(toc);
                 foreach (var child in toc.Children<JObject>())
                 {
-                    result.Add(child);
+                    var tocTitle = ((JObject)child).Property("toc_title").Value.ToString();
+                    if (!hs.ContainsKey(tocTitle))
+                    {
+                        hs.Add(tocTitle, child);
+                    }
+                    else
+                    {
+                        var children = hs[tocTitle].Property("children").Value as JArray;
+                        var newChildren = child.Property("children").Value as JArray;
+                        if (children != null && newChildren != null)
+                        {
+                            foreach (var item in newChildren)
+                            {
+                                children.Add(item);
+                            }
+                        }
+                    }
                 }
+            }
+            foreach (var item in hs.Values)
+            {
+                result.Add(item);
             }
             return result;
         }
 
-        private static void Traverse(object root, string prefix = null, string addPrefix = null)
+        private static void Traverse(object root, string prefix = null)
         {
             if (root is JArray)
             {
                 foreach (var child in ((JArray)root).Children())
                 {
-                    Traverse(child, prefix, addPrefix);
+                    Traverse(child, prefix);
                 }
             }
             else if (root is JObject)
             {
                 var tocTitle = ((JObject)root).Property("toc_title").Value.ToString();
                 var children = ((JObject)root).Property("children").Value;
-                if (!string.IsNullOrEmpty(addPrefix))
+
+                var href = ((JObject)root).Property("href").Value;
+                if (href.ToString().StartsWith(HardCodedPrefix))
                 {
-                    ((JObject) root).Property("href").Value = addPrefix + ((JObject) root).Property("href").Value;
+                    ((JObject) root).Property("href").Value = href.ToString().Substring(HardCodedPrefix.Length);
                 }
 
                 if (children != null && children.Any())
                 {
-                    Traverse(children, tocTitle + ".", addPrefix);
+                    Traverse(children, tocTitle + ".");
                 }
                 if (!string.IsNullOrEmpty(prefix))
                 {
